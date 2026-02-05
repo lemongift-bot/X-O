@@ -1,0 +1,347 @@
+<!DOCTYPE html>
+<html lang="uz">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>X/O Cyber Arena Pro</title>
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <script src="https://unpkg.com/peerjs@1.4.7/dist/peerjs.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/howler/2.2.3/howler.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&family=Rajdhani:wght@500;700&display=swap" rel="stylesheet">
+    
+    <style>
+        :root {
+            --neon-blue: #00d2ff;
+            --neon-pink: #ff007f;
+            --bg: #0a0a0c;
+            --panel: #16161e;
+            --glass: rgba(255, 255, 255, 0.05);
+        }
+
+        /* Yuklanish ekrani */
+        #preloader {
+            position: fixed; inset: 0; background: #000;
+            display: flex; justify-content: center; align-items: center;
+            z-index: 9999; transition: opacity 0.8s ease;
+        }
+        #preloader img { width: 200px; height: auto; border-radius: 20px; box-shadow: 0 0 30px var(--neon-blue); }
+
+        body {
+            margin: 0; background: var(--bg); color: white;
+            font-family: 'Rajdhani', sans-serif;
+            display: flex; flex-direction: column; align-items: center;
+            min-height: 100vh; overflow: hidden;
+            background-image: radial-gradient(circle at center, #1a1a2e 0%, #0a0a0c 100%);
+        }
+
+        /* User Header */
+        .user-header {
+            width: 100%; padding: 10px 20px; display: flex; align-items: center;
+            background: var(--glass); backdrop-filter: blur(15px);
+            border-bottom: 1px solid rgba(0, 210, 255, 0.3); box-sizing: border-box;
+        }
+        .user-avatar { width: 35px; height: 35px; border-radius: 50%; border: 2px solid var(--neon-blue); margin-right: 10px; }
+        .user-name { font-family: 'Orbitron'; font-size: 0.8rem; color: var(--neon-blue); }
+
+        /* Lobby & Panels */
+        #lobby, #game-area { width: 90%; max-width: 400px; margin-top: 15px; animation: fadeIn 0.5s ease; }
+        .mode-selector { display: flex; justify-content: center; gap: 8px; margin: 15px 0; }
+        .mode-btn {
+            background: var(--panel); border: 1px solid var(--neon-blue);
+            color: white; padding: 8px 12px; border-radius: 8px; cursor: pointer;
+            font-family: 'Orbitron'; font-size: 0.7rem; transition: 0.3s;
+        }
+        .mode-btn.active { background: var(--neon-blue); color: #000; box-shadow: 0 0 15px var(--neon-blue); }
+
+        .id-container {
+            background: #000; border: 1px dashed var(--neon-blue);
+            padding: 10px; border-radius: 10px; display: flex;
+            justify-content: space-between; align-items: center; margin: 10px 0;
+        }
+        .copy-btn {
+            background: var(--neon-blue); color: #000; border: none;
+            padding: 5px 10px; border-radius: 5px; font-family: 'Orbitron';
+            font-size: 0.6rem; cursor: pointer; font-weight: bold;
+        }
+
+        /* Game Elements */
+        .game-stats { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; }
+        .p-card { display: flex; flex-direction: column; align-items: center; gap: 5px; padding: 8px; border-radius: 10px; transition: 0.3s; }
+        .p-card img { width: 45px; height: 45px; border-radius: 50%; border: 2px solid #333; }
+        .p-card.active-x { border: 1px solid var(--neon-blue); box-shadow: 0 0 10px var(--neon-blue); }
+        .p-card.active-o { border: 1px solid var(--neon-pink); box-shadow: 0 0 10px var(--neon-pink); }
+
+        .grid { display: grid; gap: 8px; margin: 0 auto; background: rgba(255,255,255,0.02); padding: 10px; border-radius: 15px; }
+        .cell {
+            background: var(--panel); border-radius: 8px; display: flex;
+            justify-content: center; align-items: center; cursor: pointer;
+            border: 1px solid #222; font-family: 'Orbitron'; transition: 0.2s;
+        }
+        .cell.x { color: var(--neon-blue); text-shadow: 0 0 8px var(--neon-blue); }
+        .cell.o { color: var(--neon-pink); text-shadow: 0 0 8px var(--neon-pink); }
+
+        /* Chat System */
+        #chat-box {
+            position: fixed; bottom: 0; width: 100%; max-width: 450px;
+            background: #111118; border-radius: 20px 20px 0 0;
+            transform: translateY(calc(100% - 40px)); transition: 0.4s ease-in-out; z-index: 200;
+            border-top: 2px solid var(--neon-blue); box-shadow: 0 -10px 30px rgba(0,0,0,0.8);
+        }
+        #chat-box.open { transform: translateY(0); }
+        .chat-header { padding: 10px; text-align: center; font-family: 'Orbitron'; font-size: 0.7rem; color: var(--neon-blue); cursor: pointer; }
+        .messages { height: 160px; overflow-y: auto; padding: 15px; display: flex; flex-direction: column; gap: 8px; }
+        .msg { padding: 6px 12px; border-radius: 12px; font-size: 0.8rem; max-width: 75%; line-height: 1.3; }
+        .msg.me { align-self: flex-end; background: var(--neon-blue); color: #000; border-bottom-right-radius: 2px; }
+        .msg.peer { align-self: flex-start; background: #222; border-bottom-left-radius: 2px; }
+        .chat-input { display: flex; padding: 10px; gap: 8px; background: #000; }
+
+        .hidden { display: none !important; }
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+    </style>
+</head>
+<body>
+
+    <div id="preloader">
+        <img src="realix-games.webp" alt="Realix Logo">
+    </div>
+
+    <div class="user-header">
+        <img src="" id="my-pfp" class="user-avatar">
+        <span id="my-name" class="user-name">LOADING...</span>
+    </div>
+
+    <div id="lobby">
+        <div class="mode-selector">
+            <button class="mode-btn active" onclick="setGridSize(3, this)">3x3</button>
+            <button class="mode-btn" onclick="setGridSize(5, this)">5x5</button>
+            <button class="mode-btn" onclick="setGridSize(6, this)">6x6</button>
+        </div>
+        <div style="background: var(--panel); padding: 20px; border-radius: 20px; text-align: center;">
+            <div id="qr-code" style="background: white; padding: 8px; display: inline-block; border-radius: 8px; margin-bottom: 10px;"></div>
+            <div class="id-container">
+                <span id="my-id" style="font-size: 0.65rem; color: #777;">ID kutilmoqda...</span>
+                <button class="copy-btn" onclick="copyID()">NUSXA</button>
+            </div>
+            <input type="text" id="peer-id-input" placeholder="Raqib ID sini kiriting" style="width: 100%; padding: 12px; box-sizing: border-box; background: #000; border: 1px solid #333; color: white; border-radius: 8px; font-family: 'Orbitron';">
+            <button class="mode-btn" onclick="connectToPeer()" style="width: 100%; margin-top: 15px; background: var(--neon-blue); color: #000; font-weight: bold;">JANGGA KIRISH</button>
+        </div>
+    </div>
+
+    <div id="game-area" class="hidden">
+        <div class="game-stats">
+            <div class="p-card" id="card-p1">
+                <img src="" id="p1-img">
+                <span id="p1-name" style="font-size: 0.6rem;">Siz</span>
+            </div>
+            <div style="font-family: 'Orbitron'; font-size: 1.2rem; color: var(--neon-blue);">VS</div>
+            <div class="p-card" id="card-p2">
+                <img src="" id="p2-img">
+                <span id="p2-name" style="font-size: 0.6rem;">Raqib</span>
+            </div>
+        </div>
+        <div id="turn-status" style="text-align: center; font-family: 'Orbitron'; margin-bottom: 15px; font-size: 0.8rem;"></div>
+        <div class="grid" id="main-grid"></div>
+    </div>
+
+    <div id="chat-box">
+        <div class="chat-header" onclick="toggleChat()">CHAT ▲</div>
+        <div class="messages" id="chat-msgs"></div>
+        <div class="chat-input">
+            <input type="text" id="chat-input-field" placeholder="Xabar..." style="flex:1; background:#111; border:1px solid #333; color:white; padding:8px; border-radius:5px;">
+            <button onclick="sendMsg()" class="mode-btn" style="padding: 5px 12px;">➔</button>
+        </div>
+    </div>
+
+    <script>
+        const tg = window.Telegram.WebApp;
+        tg.expand();
+
+        // 1. Preloader (2 soniya)
+        window.onload = () => {
+            setTimeout(() => {
+                const loader = document.getElementById('preloader');
+                loader.style.opacity = '0';
+                setTimeout(() => loader.classList.add('hidden'), 800);
+            }, 2000);
+        };
+
+        // 2. Ovozlar va ma'lumotlar
+        const sounds = {
+            move: new Howl({ src: ['https://assets.mixkit.co/active_storage/sfx/2571/2571-preview.mp3'], volume: 0.4 }),
+            win: new Howl({ src: ['https://assets.mixkit.co/active_storage/sfx/1435/1435-preview.mp3'] })
+        };
+
+        let gridSize = 3;
+        let board = [];
+        let mySymbol = '';
+        let peer = new Peer();
+        let conn = null;
+
+        const myInfo = {
+            name: tg.initDataUnsafe?.user?.first_name || "O'yinchi",
+            pfp: tg.initDataUnsafe?.user?.photo_url || "https://cdn-icons-png.flaticon.com/512/3135/3135715.png"
+        };
+
+        document.getElementById('my-pfp').src = myInfo.pfp;
+        document.getElementById('my-name').innerText = myInfo.name.toUpperCase();
+
+        // 3. PeerJS Bog'lanish
+        peer.on('open', id => {
+            document.getElementById('my-id').innerText = id;
+            new QRCode(document.getElementById("qr-code"), { text: id, width: 120, height: 120 });
+        });
+
+        peer.on('connection', c => {
+            conn = c;
+            mySymbol = 'X';
+            setupGameData();
+        });
+
+        function copyID() {
+            const id = document.getElementById('my-id').innerText;
+            navigator.clipboard.writeText(id);
+            tg.showAlert("ID nusxalandi! Do'stingizga yuboring.");
+        }
+
+        function setGridSize(s, b) {
+            gridSize = s;
+            document.querySelectorAll('.mode-btn').forEach(btn => btn.classList.remove('active'));
+            b.classList.add('active');
+        }
+
+        function connectToPeer() {
+            const rid = document.getElementById('peer-id-input').value;
+            if(!rid) return;
+            conn = peer.connect(rid);
+            mySymbol = 'O';
+            setupGameData();
+        }
+
+        function setupGameData() {
+            conn.on('open', () => {
+                conn.send({ type: 'init', name: myInfo.name, pfp: myInfo.pfp, size: gridSize });
+                initGame();
+            });
+
+            conn.on('data', data => {
+                if(data.type === 'init') {
+                    gridSize = data.size;
+                    document.getElementById('p2-name').innerText = data.name;
+                    document.getElementById('p2-img').src = data.pfp;
+                    document.getElementById('p1-name').innerText = myInfo.name;
+                    document.getElementById('p1-img').src = myInfo.pfp;
+                    initGame();
+                }
+                if(data.type === 'move') {
+                    board[data.index] = data.symbol;
+                    sounds.move.play();
+                    updateUI();
+                    checkWin();
+                }
+                if(data.type === 'chat') {
+                    addChatMessage(data.text, 'peer');
+                }
+            });
+        }
+
+        // 4. O'yin Logikasi
+        function initGame() {
+            document.getElementById('lobby').classList.add('hidden');
+            document.getElementById('game-area').classList.remove('hidden');
+            board = Array(gridSize * gridSize).fill('');
+            updateUI();
+        }
+
+        function updateUI() {
+            const gridEl = document.getElementById('main-grid');
+            const cellSize = gridSize === 3 ? 100 : (gridSize === 5 ? 65 : 55);
+            gridEl.style.gridTemplateColumns = `repeat(${gridSize}, ${cellSize}px)`;
+            gridEl.innerHTML = '';
+
+            board.forEach((val, i) => {
+                const cell = document.createElement('div');
+                cell.className = `cell ${val.toLowerCase()}`;
+                cell.style.width = cell.style.height = cellSize + 'px';
+                cell.style.fontSize = (cellSize/2) + 'px';
+                cell.innerText = val;
+                cell.onclick = () => makeMove(i);
+                gridEl.appendChild(cell);
+            });
+
+            const turn = board.filter(x => x).length % 2 === 0 ? 'X' : 'O';
+            document.getElementById('turn-status').innerText = (turn === mySymbol) ? "SIZNING NAVBATINGIZ" : "RAQIBNAV BATI...";
+            document.getElementById('turn-status').style.color = (turn === mySymbol) ? "var(--neon-blue)" : "var(--neon-pink)";
+            
+            document.getElementById('card-p1').className = `p-card ${turn === mySymbol ? (mySymbol === 'X' ? 'active-x' : 'active-o') : ''}`;
+            document.getElementById('card-p2').className = `p-card ${turn !== mySymbol ? (mySymbol === 'X' ? 'active-o' : 'active-x') : ''}`;
+        }
+
+        function makeMove(i) {
+            const turn = board.filter(x => x).length % 2 === 0 ? 'X' : 'O';
+            if(board[i] || turn !== mySymbol || !conn) return;
+            board[i] = mySymbol;
+            sounds.move.play();
+            conn.send({ type: 'move', index: i, symbol: mySymbol });
+            updateUI();
+            checkWin();
+        }
+
+        function checkWin() {
+            const winner = calculateWinner();
+            if(winner) {
+                if(winner === mySymbol) {
+                    sounds.win.play();
+                    confetti({ particleCount: 150, spread: 70 });
+                }
+                setTimeout(() => {
+                    tg.showPopup({ 
+                        title: winner === 'Draw' ? 'Durang!' : (winner === mySymbol ? 'G\'alaba! 🏆' : 'Mag\'lubiyat 💀'),
+                        message: 'O\'yin tugadi.',
+                        buttons: [{type: 'default', text: 'Bosh saxifa'}] 
+                    }, () => location.reload());
+                }, 500);
+            }
+        }
+
+        function calculateWinner() {
+            const lines = [];
+            for(let i=0; i<gridSize; i++) {
+                let r=[], c=[];
+                for(let j=0; j<gridSize; j++) { r.push(i*gridSize+j); c.push(j*gridSize+i); }
+                lines.push(r, c);
+            }
+            let d1=[], d2=[];
+            for(let i=0; i<gridSize; i++) { d1.push(i*gridSize+i); d2.push(i*gridSize+(gridSize-1-i)); }
+            lines.push(d1, d2);
+
+            for(let l of lines) {
+                const v = l.map(idx => board[idx]);
+                if(v[0] && v.every(x => x === v[0])) return v[0];
+            }
+            return board.includes('') ? null : 'Draw';
+        }
+
+        // 5. Chat Logikasi
+        function toggleChat() { document.getElementById('chat-box').classList.toggle('open'); }
+        function sendMsg() {
+            const input = document.getElementById('chat-input-field');
+            if(!input.value || !conn) return;
+            conn.send({ type: 'chat', text: input.value });
+            addChatMessage(input.value, 'me');
+            input.value = '';
+        }
+        function addChatMessage(txt, side) {
+            const div = document.createElement('div');
+            div.className = `msg ${side}`;
+            div.innerText = txt;
+            document.getElementById('chat-msgs').appendChild(div);
+            document.getElementById('chat-msgs').scrollTop = 9999;
+            if(side === 'peer' && !document.getElementById('chat-box').classList.contains('open')) {
+                document.getElementById('chat-box').classList.add('open');
+            }
+        }
+    </script>
+</body>
+</html>
