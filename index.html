@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="uz">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>X/O Cyber Multiplayer</title>
+    <script src="https://unpkg.com/peerjs@1.4.7/dist/peerjs.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --neon-blue: #00d2ff;
+            --neon-pink: #ff007f;
+            --bg: #0a0a0c;
+            --panel: #16161e;
+        }
+
+        body {
+            margin: 0; background: var(--bg); color: white;
+            font-family: 'Orbitron', sans-serif;
+            display: flex; flex-direction: column; align-items: center;
+            min-height: 100vh; overflow-x: hidden;
+        }
+
+        /* Yuklanish ekrani (Preloader) */
+        #preloader {
+            position: fixed; inset: 0; background: #000;
+            display: flex; justify-content: center; align-items: center;
+            z-index: 9999; transition: opacity 0.5s ease;
+        }
+        #preloader img { width: 250px; height: auto; border-radius: 20px; box-shadow: 0 0 30px var(--neon-blue); }
+
+        .header { text-align: center; margin: 20px 0; }
+        .header h1 { color: var(--neon-blue); text-shadow: 0 0 10px var(--neon-blue); font-size: 1.4rem; }
+
+        /* Connection Panel */
+        .conn-panel {
+            width: 90%; max-width: 380px; background: var(--panel);
+            padding: 20px; border-radius: 20px; border: 1px solid #333;
+            text-align: center; margin-bottom: 20px;
+        }
+        
+        .id-container {
+            background: #000; padding: 10px; border-radius: 10px;
+            display: flex; justify-content: space-between; align-items: center;
+            margin-bottom: 15px; border: 1px dashed var(--neon-blue);
+        }
+        #my-id { font-size: 0.7rem; color: #aaa; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .copy-btn {
+            background: var(--neon-blue); color: #000; border: none;
+            padding: 5px 10px; border-radius: 5px; font-size: 0.7rem;
+            cursor: pointer; font-weight: bold; margin-left: 10px;
+        }
+
+        input {
+            width: 85%; padding: 12px; margin: 10px 0;
+            background: #000; border: 1px solid var(--neon-blue);
+            color: white; border-radius: 8px; text-align: center; font-family: 'Orbitron';
+        }
+
+        .btn-main {
+            width: 90%; padding: 12px; background: var(--neon-blue);
+            border: none; border-radius: 8px; cursor: pointer;
+            font-weight: bold; font-family: 'Orbitron'; color: #000;
+        }
+
+        #qr-code { background: white; padding: 10px; display: inline-block; margin: 15px 0; border-radius: 5px; }
+
+        /* Game Grid */
+        .grid {
+            display: grid; grid-template-columns: repeat(3, 100px);
+            grid-template-rows: repeat(3, 100px); gap: 12px;
+            margin-top: 10px;
+        }
+        .cell {
+            width: 100px; height: 100px; background: var(--panel);
+            border-radius: 15px; display: flex; justify-content: center;
+            align-items: center; font-size: 3.5rem; cursor: pointer;
+            border: 2px solid #222; transition: 0.3s;
+        }
+        .cell:hover { border-color: var(--neon-blue); box-shadow: 0 0 15px var(--neon-blue); }
+        .cell.x { color: var(--neon-blue); text-shadow: 0 0 20px var(--neon-blue); }
+        .cell.o { color: var(--neon-pink); text-shadow: 0 0 20px var(--neon-pink); }
+
+        #status { margin: 20px 0; font-size: 1.1rem; color: var(--neon-blue); font-weight: bold; }
+        
+        .hidden { display: none !important; }
+    </style>
+</head>
+<body>
+
+    <div id="preloader">
+        <img src="realix-games.webp" alt="Realix Game Logo">
+    </div>
+
+    <div class="header">
+        <h1>X/O MULTIPLAYER P2P</h1>
+    </div>
+
+    <div class="conn-panel" id="setup">
+        <p style="font-size: 0.8rem; margin-bottom: 5px;">Sizning ID raqamingiz:</p>
+        <div class="id-container">
+            <span id="my-id">Yuklanmoqda...</span>
+            <button class="copy-btn" onclick="copyID()">NUSXA</button>
+        </div>
+        
+        <div id="qr-code"></div>
+        
+        <input type="text" id="peer-input" placeholder="Raqib ID sini kiriting">
+        <button class="btn-main" onclick="connectPeer()">ULANISH & O'YINNI BOSHLASH</button>
+    </div>
+
+    <div id="status">Raqib ulanishini kuting yoki ID yuboring</div>
+
+    <div class="grid" id="board">
+        <div class="cell" onclick="makeMove(0)"></div>
+        <div class="cell" onclick="makeMove(1)"></div>
+        <div class="cell" onclick="makeMove(2)"></div>
+        <div class="cell" onclick="makeMove(3)"></div>
+        <div class="cell" onclick="makeMove(4)"></div>
+        <div class="cell" onclick="makeMove(5)"></div>
+        <div class="cell" onclick="makeMove(6)"></div>
+        <div class="cell" onclick="makeMove(7)"></div>
+        <div class="cell" onclick="makeMove(8)"></div>
+    </div>
+
+    <button onclick="location.reload()" style="margin: 30px; background: none; color: #555; border: 1px solid #333; padding: 5px 15px; border-radius: 5px; cursor: pointer;">O'yinni yangilash</button>
+
+    
+
+    <script>
+        // Preloader 2 soniyadan keyin yo'qoladi
+        window.addEventListener('load', () => {
+            setTimeout(() => {
+                const loader = document.getElementById('preloader');
+                loader.style.opacity = '0';
+                setTimeout(() => loader.classList.add('hidden'), 500);
+            }, 2000);
+        });
+
+        let board = ['', '', '', '', '', '', '', '', ''];
+        let mySymbol = null; // 'X' yoki 'O'
+        let turn = 'X'; 
+        let peer = new Peer();
+        let conn = null;
+
+        // Peer ID yaratilganda
+        peer.on('open', id => {
+            document.getElementById('my-id').innerText = id;
+            new QRCode(document.getElementById("qr-code"), { text: id, width: 120, height: 120 });
+        });
+
+        // Host sifatida ulanishni qabul qilish
+        peer.on('connection', c => {
+            conn = c;
+            mySymbol = 'X'; // O'yin ochgan odam har doim X
+            setupGame();
+        });
+
+        // Mehmon sifatida ulanish
+        function connectPeer() {
+            const id = document.getElementById('peer-input').value;
+            if(!id) return alert("ID kiriting!");
+            conn = peer.connect(id);
+            mySymbol = 'O'; // Ulangan odam har doim O
+            setupGame();
+        }
+
+        function copyID() {
+            const idText = document.getElementById('my-id').innerText;
+            navigator.clipboard.writeText(idText);
+            alert("ID nusxalandi!");
+        }
+
+        function setupGame() {
+            document.getElementById('setup').classList.add('hidden');
+            document.getElementById('status').innerText = "Ulandi! Siz: " + mySymbol;
+            
+            conn.on('data', data => {
+                if (data.type === 'move') {
+                    board[data.index] = data.symbol;
+                    updateUI();
+                    checkWinner();
+                }
+            });
+        }
+
+        function makeMove(index) {
+            if (!conn || board[index] !== '' || turn !== mySymbol) return;
+
+            board[index] = mySymbol;
+            conn.send({ type: 'move', index: index, symbol: mySymbol });
+            updateUI();
+            checkWinner();
+        }
+
+        function updateUI() {
+            const cells = document.querySelectorAll('.cell');
+            board.forEach((val, i) => {
+                cells[i].innerText = val;
+                cells[i].className = 'cell ' + (val ? val.toLowerCase() : '');
+            });
+            turn = (turn === 'X') ? 'O' : 'X';
+            document.getElementById('status').innerText = (turn === mySymbol) ? "Sizning navbatingiz" : "Raqib navbati";
+        }
+
+        function checkWinner() {
+            const winPaths = [[0,1,2],[3,4,5],[6,7,8],[0,3,6],[1,4,7],[2,5,8],[0,4,8],[2,4,6]];
+            for (let path of winPaths) {
+                const [a, b, c] = path;
+                if (board[a] && board[a] === board[b] && board[a] === board[c]) {
+                    document.getElementById('status').innerText = board[a] + " G'ALABA QOZONDI! 🏆";
+                    return;
+                }
+            }
+            if (!board.includes('')) document.getElementById('status').innerText = "DURANG! 🤝";
+        }
+    </script>
+</body>
+</html>
